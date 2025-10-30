@@ -84,13 +84,8 @@
             </li>
               {{ if .query.controls}}
             <li class="nav-item dropdown">
-              <input type="hidden" id="defaultPlayer" value="mse" />
-              <a id="defaultPlayerMenu" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" class="nav-link dropdown-toggle">MSE</a>
-              <ul aria-labelledby="defaultPlayerMenu" class="dropdown-menu  custom-dropdown">
-                <li><a href="#" class="dropdown-item" onclick="defaultPlayer('mse',this)">MSE</a></li>
-                <li><a href="#" class="dropdown-item" onclick="defaultPlayer('hls',this)">HLS</a></li>
-                <li><a href="#" class="dropdown-item" onclick="defaultPlayer('webrtc',this)">WebRTC</a></li>
-              </ul>
+              <input type="hidden" id="defaultPlayer" value="hls" />
+              <a id="defaultPlayerMenu" href="#" data-toggle="dropdown" aria-haspopup="true" aria-expanded="false" class="nav-link dropdown-toggle">HLS</a>
             </li>
             <li class="nav-item">
               <a class="nav-link" href="/" role="button"><i class="fas fa-times"></i> Close</a>
@@ -419,37 +414,23 @@
       }
     });
 
-    switch (playerType) {
-      case 'hls':
-        let url = '/stream/' + uuid + '/channel/' + channel + '/hls/live/index.m3u8';
+    let url = '/stream/' + uuid + '/channel/' + channel + '/hls/live/index.m3u8';
 
-        if (videoPlayerVar.find('video')[0].canPlayType('application/vnd.apple.mpegurl')) {
-          videoPlayerVar.find('video')[0].src = url;
-          videoPlayerVar.find('video')[0].load();
-        } else if (Hls.isSupported()) {
-          players[index] = new Hls({
-            manifestLoadingTimeOut: 60000
-          });
-          players[index].loadSource(url);
-          players[index].attachMedia(videoPlayerVar.find('video')[0]);
-        } else {
-          Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'Your browser don`t support hls '
-          });
-        }
-        break;
-      case 'webrtc':
-        players[index] = new WebRTCPlayer(uuid, videoPlayerVar, channel);
-        players[index].playWebrtc();
-        break;
-      case 'mse':
-      default:
-
-        players[index] = new msePlayer(uuid, videoPlayerVar, channel);
-        players[index].playMse();
-        break;
+    if (videoPlayerVar.find('video')[0].canPlayType('application/vnd.apple.mpegurl')) {
+      videoPlayerVar.find('video')[0].src = url;
+      videoPlayerVar.find('video')[0].load();
+    } else if (Hls.isSupported()) {
+      players[index] = new Hls({
+        manifestLoadingTimeOut: 60000
+      });
+      players[index].loadSource(url);
+      players[index].attachMedia(videoPlayerVar.find('video')[0]);
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Oops...',
+        text: 'Your browser don`t support hls '
+      });
     }
 
   }
@@ -463,25 +444,9 @@
     videoPlayerVar.addClass('empty');
     videoPlayerVar.find('video').addClass('empty')
 
-    switch (type) {
-      case 'hls':
-        if (!!players[index]) {
-          players[index].destroy();
-          delete players[index];
-        }
-        break;
-      case 'mse':
-        players[index].destroy();
-        delete players[index];
-
-        break;
-      case 'webrtc':
-        players[index].destroy();
-        delete players[index];
-        break;
-      default:
-
-        break;
+    if (!!players[index]) {
+      players[index].destroy();
+      delete players[index];
     }
     videoPlayerVar.attr('data-player', 'none');
     videoPlayerVar.attr('data-uuid', 0);
@@ -509,331 +474,6 @@
   function closeMain() {
     destoyPlayer('main');
     $('.main-player-wrapper').addClass('d-none');
-  }
-  /*************************mse obect **************************/
-  function msePlayer(uuid, videoPlayerVar, channel) {
-    this.ws = null,
-      this.video = videoPlayerVar.find('video')[0],
-      this.sound=false,
-      this.mseSourceBuffer = null,
-      this.mse = null,
-      this.mseQueue = [],
-      this.mseStreamingStarted = false,
-      this.uuid = uuid,
-      this.channel = channel || 0;
-    this.timeout = null;
-    this.checktime = null;
-    this.checktimecounter = 0;
-    this.playMse = function() {
-      let _this = this;
-      logger(videoPlayerVar.index(),
-        'func playMse',
-        'streams: ' + uuid,
-        'channel: ' + channel);
-
-      this.mse = new MediaSource();
-      this.video.src = window.URL.createObjectURL(this.mse);
-
-      let potocol = 'ws';
-      if (location.protocol == 'https:') {
-        potocol = 'wss';
-      }
-
-      let ws_url = potocol + '://' + location.host + '/stream/' + this.uuid + '/channel/' + this.channel + '/mse?uuid=' + this.uuid + '&channel=' + this.channel;
-
-      this.mse.addEventListener('sourceopen', function() {
-        logger(videoPlayerVar.index(),
-          uuid,
-          channel,
-          '[MSE]: sourceopen');
-        _this.ws = new WebSocket(ws_url);
-        _this.ws.binaryType = "arraybuffer";
-        _this.ws.onopen = function(event) {
-
-          logger(videoPlayerVar.index(),
-            uuid,
-            channel,
-            '[websocket]: connected');
-        }
-
-        _this.ws.onclose = function(event) {
-          logger(videoPlayerVar.index(),
-            uuid,
-            channel,
-            '[websocket]: closed');
-          if (_this.timeout != null) {
-            clearInterval(_this.timeout);
-            _this.timeout = null;
-          }
-          _this.timeout = setTimeout(() => {
-            logger(videoPlayerVar.index(),
-              uuid,
-              channel,
-              '[websocket]: timeouted func play');
-            play(uuid, videoPlayerVar.index(), channel, 'mse')
-          }, 15000)
-
-
-        }
-        _this.ws.onerror = (e) => {
-          logger(videoPlayerVar.index(),
-            uuid,
-            channel,
-            '[websocket]: error');
-        }
-        _this.ws.onmessage = function(event) {
-          _this.checkStalled();
-          let data = new Uint8Array(event.data);
-          if (data[3] == 24) {
-            logger(videoPlayerVar.index(),
-              uuid,
-              channel,
-              '[data]: init_file');
-          }
-
-          if (data[0] == 9) {
-            decoded_arr = data.slice(1);
-            if (window.TextDecoder) {
-              mimeCodec = new TextDecoder("utf-8").decode(decoded_arr);
-            } else {
-              mimeCodec = Utf8ArrayToStr(decoded_arr);
-            }
-            if(mimeCodec.indexOf(',')>0){
-              _this.sound=true;
-            }
-            logger(videoPlayerVar.index(),
-              uuid,
-              channel,
-              '[codec]: ' + mimeCodec);
-            //console.log(mimeCodec);
-            _this.mseSourceBuffer = _this.mse.addSourceBuffer('video/mp4; codecs="' + mimeCodec + '"');
-            _this.mseSourceBuffer.mode = "segments"
-            _this.mseSourceBuffer.addEventListener("updateend", _this.pushPacket.bind(_this));
-
-          } else {
-            _this.readPacket(event.data);
-          }
-        };
-      }, false);
-
-      this.mse.addEventListener('sourceended', function() {
-        logger(videoPlayerVar.index(),
-          uuid,
-          channel,
-          '[MSE]: sourceended');
-      })
-      this.mse.addEventListener('sourceclose', function() {
-        logger(videoPlayerVar.index(),
-          uuid,
-          channel,
-          '[MSE]: sourceclose');
-      })
-
-      this.mse.addEventListener('error', function() {
-        logger(videoPlayerVar.index(),
-          uuid,
-          channel,
-          '[MSE]: error');
-      })
-      this.mse.addEventListener('abort', function() {
-        logger(videoPlayerVar.index(),
-          uuid,
-          channel,
-          '[MSE]: abort');
-      })
-      this.mse.addEventListener('updatestart', function() {
-        logger(videoPlayerVar.index(),
-          uuid,
-          channel,
-          '[MSE]: updatestart');
-      })
-      this.mse.addEventListener('update', function() {
-        logger(videoPlayerVar.index(),
-          uuid,
-          channel,
-          '[MSE]: update');
-      })
-      this.mse.addEventListener('updateend', function() {
-        logger(videoPlayerVar.index(),
-          uuid,
-          channel,
-          '[MSE]: updateend');
-      })
-      this.mse.addEventListener('addsourcebuffer', function() {
-        logger(videoPlayerVar.index(),
-          uuid,
-          channel,
-          '[MSE]: addsourcebuffer');
-      })
-      this.mse.addEventListener('removesourcebuffer', function() {
-        logger(videoPlayerVar.index(),
-          uuid,
-          channel,
-          '[MSE]: removesourcebuffer');
-      })
-
-    }
-
-    this.readPacket = function(packet) {
-        if (!this.mseStreamingStarted) {
-          try {
-            this.mseSourceBuffer.appendBuffer(packet);
-            this.mseStreamingStarted = true;
-          } catch (e) {
-            logger(videoPlayerVar.index(),
-              'readPacket error',
-              'streams: ' + uuid,
-              'channel: ' + channel);
-            console.log(e);
-
-            play(uuid, videoPlayerVar.index(), channel, 'mse');
-
-          } finally {
-            return;
-          }
-
-
-        }
-        this.mseQueue.push(packet);
-
-        if (!this.mseSourceBuffer.updating) {
-          this.pushPacket();
-        }
-      },
-
-      this.pushPacket = function() {
-        let _this = this;
-        if (!_this.mseSourceBuffer.updating) {
-          if (_this.mseQueue.length > 0) {
-            packet = _this.mseQueue.shift();
-
-            try {
-              _this.mseSourceBuffer.appendBuffer(packet)
-            } catch (e) {
-              logger(videoPlayerVar.index(),
-                'pushPacket error',
-                'streams: ' + uuid,
-                'channel: ' + channel);
-              console.log(e);
-
-              play(uuid, videoPlayerVar.index(), channel, 'mse');
-            } finally {
-
-            }
-          } else {
-            _this.mseStreamingStarted = false;
-          }
-        }
-        if (_this.video.buffered.length > 0) {
-          if (typeof document.hidden !== "undefined" && document.hidden) {
-            if(!_this.sound){
-              _this.video.currentTime = _this.video.buffered.end((_this.video.buffered.length - 1)) - 0.5;
-            }
-          } else {
-            if ((_this.video.buffered.end((_this.video.buffered.length - 1)) - _this.video.currentTime) > 60) {
-              _this.video.currentTime = _this.video.buffered.end((_this.video.buffered.length - 1)) - 0.5;
-            }
-          }
-        }
-      }
-    this.checkStalled = function() {
-        if (!!this.video.currentTime) {
-          if (this.video.currentTime == this.checktime) {
-            this.checktimecounter += 1;
-          } else {
-            this.checktimecounter = 0;
-          }
-        }
-        if (this.checktimecounter > 10) {
-          logger(videoPlayerVar.index(),
-            uuid,
-            channel,
-            '[FIX]: player not move');
-          play(uuid, videoPlayerVar.index(), channel, 'mse');
-        }
-        this.checktime = this.video.currentTime;
-
-      },
-      this.destroy = function() {
-        if (this.timeout != null) {
-          clearInterval(this.timeout);
-        }
-        if (this.ws != null) {
-
-          this.ws.onclose = null;
-          this.ws.close(1000, "stop streaming");
-        }
-
-
-
-        logger(videoPlayerVar.index(),
-          'Event: PlayerDestroy',
-          'streams: ' + uuid,
-          'channel: ' + channel);
-      }
-  }
-  /*************************end mse obect **************************/
-  /*************************WEBRTC obect **************************/
-  function WebRTCPlayer(uuid, videoPlayerVar, channel) {
-    this.webrtc = null;
-    this.webrtcSendChannel = null;
-    this.webrtcSendChannelInterval = null;
-    this.uuid = uuid;
-    this.video = videoPlayerVar.find('video')[0];
-    this.channel = channel || 0;
-    this.playWebrtc = function() {
-        var _this = this;
-        this.webrtc = new RTCPeerConnection({
-          iceServers: [{
-            urls: ["stun:stun.l.google.com:19302"]
-          }]
-        });
-        this.webrtc.onnegotiationneeded = this.handleNegotiationNeeded.bind(this);
-        this.webrtc.ontrack = function(event) {
-          console.log(event.streams.length + ' track is delivered');
-          _this.video.srcObject = event.streams[0];
-          _this.video.play();
-        }
-        this.webrtc.addTransceiver('video', {
-          'direction': 'sendrecv'
-        });
-        this.webrtcSendChannel = this.webrtc.createDataChannel('foo');
-        this.webrtcSendChannel.onclose = (e) => console.log('sendChannel has closed', e);
-        this.webrtcSendChannel.onopen = () => {
-          console.log('sendChannel has opened');
-          this.webrtcSendChannel.send('ping');
-          this.webrtcSendChannelInterval = setInterval(() => {
-            this.webrtcSendChannel.send('ping');
-          }, 1000)
-        }
-
-        this.webrtcSendChannel.onmessage = e => console.log(e.data);
-      },
-      this.handleNegotiationNeeded = async function() {
-        var _this = this;
-
-        offer = await _this.webrtc.createOffer();
-        await _this.webrtc.setLocalDescription(offer);
-        $.post("/stream/" + _this.uuid + "/channel/" + this.channel + "/webrtc?uuid=" + _this.uuid + "&channel=" + this.channel, {
-          data: btoa(_this.webrtc.localDescription.sdp)
-        }, function(data) {
-          try {
-            _this.webrtc.setRemoteDescription(new RTCSessionDescription({
-              type: 'answer',
-              sdp: atob(data)
-            }))
-          } catch (e) {
-            console.warn(e);
-          }
-
-        });
-      }
-
-    this.destroy = function() {
-      clearInterval(this.webrtcSendChannelInterval);
-      this.webrtc.close();
-      this.video.srcObject = null;
-    }
   }
 
   /*********************FULSCREEN******************/

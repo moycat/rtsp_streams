@@ -1,6 +1,7 @@
 package main
 
 import (
+	"encoding/json"
 	"errors"
 	"net"
 	"sync"
@@ -27,10 +28,7 @@ const (
 
 // Default stream errors
 var (
-	Success                         = "success"
 	ErrorStreamNotFound             = errors.New("stream not found")
-	ErrorStreamAlreadyExists        = errors.New("stream already exists")
-	ErrorStreamChannelAlreadyExists = errors.New("stream channel already exists")
 	ErrorStreamNotHLSSegments       = errors.New("stream hls not ts seq found")
 	ErrorStreamNoVideo              = errors.New("stream no video")
 	ErrorStreamNoClients            = errors.New("stream no clients")
@@ -39,8 +37,6 @@ var (
 	ErrorStreamStopRTSPSignal       = errors.New("stream stop rtsp signal")
 	ErrorStreamChannelNotFound      = errors.New("stream channel not found")
 	ErrorStreamChannelCodecNotFound = errors.New("stream channel codec not ready, possible stream offline")
-	ErrorStreamsLen0                = errors.New("streams len zero")
-	ErrorStreamUnauthorized         = errors.New("stream request unauthorized")
 )
 
 // StorageST main storage struct
@@ -53,35 +49,13 @@ type StorageST struct {
 
 // ServerST server storage section
 type ServerST struct {
-	Debug              bool         `json:"debug" groups:"api,config"`
-	LogLevel           logrus.Level `json:"log_level" groups:"api,config"`
-	HTTPDemo           bool         `json:"http_demo" groups:"api,config"`
-	HTTPDebug          bool         `json:"http_debug" groups:"api,config"`
-	HTTPLogin          string       `json:"http_login" groups:"api,config"`
-	HTTPPassword       string       `json:"http_password" groups:"api,config"`
-	HTTPAuth           bool         `json:"http_auth" groups:"api,config"`
-	HTTPDir            string       `json:"http_dir" groups:"api,config"`
-	HTTPPort           string       `json:"http_port" groups:"api,config"`
-	RTSPPort           string       `json:"rtsp_port" groups:"api,config"`
-	HTTPS              bool         `json:"https" groups:"api,config"`
-	HTTPSPort          string       `json:"https_port" groups:"api,config"`
-	HTTPSCert          string       `json:"https_cert" groups:"api,config"`
-	HTTPSKey           string       `json:"https_key" groups:"api,config"`
-	HTTPSAutoTLSEnable bool         `json:"https_auto_tls" groups:"api,config"`
-	HTTPSAutoTLSName   string       `json:"https_auto_tls_name" groups:"api,config"`
-	ICEServers         []string     `json:"ice_servers" groups:"api,config"`
-	ICEUsername        string       `json:"ice_username" groups:"api,config"`
-	ICECredential      string       `json:"ice_credential" groups:"api,config"`
-	ICECandidates      []string     `json:"ice_candidates" groups:"api,config"`
-	Token              Token        `json:"token,omitempty" groups:"api,config"`
-	WebRTCPortMin      uint16       `json:"webrtc_port_min" groups:"api,config"`
-	WebRTCPortMax      uint16       `json:"webrtc_port_max" groups:"api,config"`
-}
-
-// Token auth
-type Token struct {
-	Enable  bool   `json:"enable" groups:"api,config"`
-	Backend string `json:"backend" groups:"api,config"`
+	Debug     bool         `json:"debug" groups:"api,config"`
+	LogLevel  logrus.Level `json:"log_level" groups:"api,config"`
+	HTTPDemo  bool         `json:"http_demo" groups:"api,config"`
+	HTTPDebug bool         `json:"http_debug" groups:"api,config"`
+	HTTPDir   string       `json:"http_dir" groups:"api,config"`
+	HTTPPort  string       `json:"http_port" groups:"api,config"`
+	RTSPPort  string       `json:"rtsp_port" groups:"api,config"`
 }
 
 // ServerST stream storage section
@@ -109,6 +83,13 @@ type ChannelST struct {
 	clients            map[string]ClientST
 	ack                time.Time
 	hlsMuxer           *MuxerHLS `json:"-"`
+}
+
+func (ch *ChannelST) MarshalJSON() ([]byte, error) {
+	type Alias ChannelST
+	shadow := Alias(*ch)
+	shadow.URL = ""
+	return json.Marshal(shadow)
 }
 
 // ClientST client storage section

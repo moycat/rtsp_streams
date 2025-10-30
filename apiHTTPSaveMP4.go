@@ -36,12 +36,6 @@ func HTTPAPIServerStreamSaveToMP4(c *gin.Context) {
 		return
 	}
 
-	if !RemoteAuthorization("save", safeContext.Param("uuid"), safeContext.Param("channel"), safeContext.Query("token"), safeContext.ClientIP()) {
-		requestLogger.WithFields(logrus.Fields{
-			"call": "RemoteAuthorization",
-		}).Errorln(ErrorStreamUnauthorized.Error())
-		return
-	}
 	c.Writer.Write([]byte("await save started"))
 	go func() {
 		Storage.StreamChannelRun(safeContext.Param("uuid"), safeContext.Param("channel"))

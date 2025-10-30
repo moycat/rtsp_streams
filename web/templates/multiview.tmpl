@@ -36,14 +36,9 @@
               </div>
             </div>
             <div class="btn-group">
-              <input type="hidden" id="defaultPlayer" value="mse" />
-              <button type="button" class="btn btn-tool dropdown-toggle" data-toggle="dropdown">
-                MSE
-              </button>
+              <input type="hidden" id="defaultPlayer" value="hls" />
               <div class="dropdown-menu dropdown-menu-right" role="menu">
-                <a href="#" class="dropdown-item" onclick="defaultPlayer('mse',this)">MSE</a>
-                <a href="#" class="dropdown-item" onclick="defaultPlayer('hls',this)">HLS</a>
-                <a href="#" class="dropdown-item" onclick="defaultPlayer('webrtc',this)">WebRTC</a>
+                <a href="#" class="dropdown-item" onclick="defaultPlayer('hls',this)">Play</a>
               </div>
             </div>
 
@@ -125,7 +120,7 @@
 
 <script src="/../static/plugins/hlsjs/hls.min.js"></script>
 <script>
-  const playerType = 'webrtc';
+  const playerType = 'hls';
   let players = {};
   $(document).ready(() => {
     gridMaker(multiviewGrid('get'));
@@ -228,37 +223,23 @@
       }
     });
 
-    switch (playerType) {
-      case 'hls':
-        let url = '/stream/' + uuid + '/channel/' + channel + '/hls/live/index.m3u8';
+    let url = '/stream/' + uuid + '/channel/' + channel + '/hls/live/index.m3u8';
 
-        if (videoPlayer.find('video')[0].canPlayType('application/vnd.apple.mpegurl')) {
-          videoPlayer.find('video')[0].src = url;
-          videoPlayer.find('video')[0].load();
-        } else if (Hls.isSupported()) {
-          players[index] = new Hls({
-            manifestLoadingTimeOut: 60000
-          });
-          players[index].loadSource(url);
-          players[index].attachMedia(videoPlayer.find('video')[0]);
-        } else {
-          Swal.fire({
-            icon: 'error',
-            title: 'Oops...',
-            text: 'Your browser don`t support hls '
-          });
-        }
-        break;
-      case 'webrtc':
-        players[index] = new WebRTCPlayer(uuid, videoPlayer, channel);
-        players[index].playWebrtc();
-        break;
-      case 'mse':
-      default:
-
-        players[index] = new msePlayer(uuid, videoPlayer, channel);
-        players[index].playMse();
-        break;
+    if (videoPlayer.find('video')[0].canPlayType('application/vnd.apple.mpegurl')) {
+      videoPlayer.find('video')[0].src = url;
+      videoPlayer.find('video')[0].load();
+    } else if (Hls.isSupported()) {
+      players[index] = new Hls({
+        manifestLoadingTimeOut: 60000
+      });
+      players[index].loadSource(url);
+      players[index].attachMedia(videoPlayer.find('video')[0]);
+    } else {
+      Swal.fire({
+        icon: 'error',
+        title: 'Oops...',
+        text: 'Your browser don`t support hls '
+      });
     }
 
   }
@@ -270,25 +251,9 @@
     }
     let type = videoPlayer.attr('data-player');
     videoPlayer.find('video').css('background', '#343a40');
-    switch (type) {
-      case 'hls':
-        if (!!players[index]) {
-          players[index].destroy();
-          delete players[index];
-        }
-        break;
-      case 'mse':
-        players[index].destroy();
-        delete players[index];
-
-        break;
-      case 'webrtc':
-        players[index].destroy();
-        delete players[index];
-        break;
-      default:
-
-        break;
+    if (!!players[index]) {
+      players[index].destroy();
+      delete players[index];
     }
     videoPlayer.attr('data-player', 'none');
     videoPlayer.attr('data-uuid', 0);
@@ -316,205 +281,7 @@
     destoyPlayer('main');
     $('.main-player-wrapper').addClass('d-none');
   }
-  /*************************mse obect **************************/
-  function msePlayer(uuid, videoPlayer, channel) {
-    this.ws = null,
-      this.video = videoPlayer.find('video')[0],
-      this.mseSourceBuffer = null,
-      this.mse = null,
-      this.mseQueue = [],
-      this.mseStreamingStarted = false,
-      this.uuid = uuid,
-      this.channel = channel || 0;
-      this.timeout=null;
-    this.playMse = function() {
-      let _this = this;
-      this.mse = new MediaSource();
-      this.video.src = window.URL.createObjectURL(this.mse);
 
-      let potocol = 'ws';
-      if (location.protocol == 'https:') {
-        potocol = 'wss';
-      }
-
-      let ws_url = potocol + '://' + location.host + '/stream/' + this.uuid + '/channel/' + this.channel + '/mse?uuid=' + this.uuid + '&channel=' + this.channel;
-
-      this.mse.addEventListener('sourceopen', function() {
-        _this.ws = new WebSocket(ws_url);
-        _this.ws.binaryType = "arraybuffer";
-        _this.ws.onopen = function(event) {
-          console.log('Connect to ws');
-        }
-
-        _this.ws.onclose = function(event) {
-          console.log('disconnect, try to reconect until 15 sec');
-
-            setTimeout(()=>{
-
-              play(uuid, videoPlayer.index(), channel,'mse')
-
-            },15000)
-
-
-        }
-          _this.ws.onerror=(e)=>{
-            console.log('error, try to reconect until 15 sec');
-            setTimeout(()=>{
-              play(uuid, videoPlayer.index(), channel,'mse')
-
-            },15000)
-          }
-        _this.ws.onmessage = function(event) {
-          let data = new Uint8Array(event.data);
-          if (data[0] == 9) {
-            decoded_arr = data.slice(1);
-            if (window.TextDecoder) {
-              mimeCodec = new TextDecoder("utf-8").decode(decoded_arr);
-            } else {
-              mimeCodec = Utf8ArrayToStr(decoded_arr);
-            }
-            //console.log(mimeCodec);
-            _this.mseSourceBuffer = _this.mse.addSourceBuffer('video/mp4; codecs="' + mimeCodec + '"');
-            _this.mseSourceBuffer.mode = "segments"
-            _this.mseSourceBuffer.addEventListener("updateend", _this.pushPacket.bind(_this));
-
-          } else {
-            _this.readPacket(event.data);
-          }
-        };
-      }, false);
-
-    }
-
-    this.readPacket = function(packet) {
-        if (!this.mseStreamingStarted) {
-          this.mseSourceBuffer.appendBuffer(packet);
-          this.mseStreamingStarted = true;
-          return;
-        }
-        this.mseQueue.push(packet);
-
-        if (!this.mseSourceBuffer.updating) {
-          this.pushPacket();
-        }
-      },
-
-      this.pushPacket = function() {
-        let _this = this;
-        if (!_this.mseSourceBuffer.updating) {
-          if (_this.mseQueue.length > 0) {
-            packet = _this.mseQueue.shift();
-            let view = new Uint8Array(packet);
-            _this.mseSourceBuffer.appendBuffer(packet);
-          } else {
-            _this.mseStreamingStarted = false;
-          }
-        }
-        if (_this.video.buffered.length > 0) {
-          if (typeof document.hidden !== "undefined" && document.hidden) {
-            _this.video.currentTime = _this.video.buffered.end((_this.video.buffered.length - 1)) - 0.5;
-          }else{
-            if( (_this.video.buffered.end((_this.video.buffered.length - 1))-_this.video.currentTime)>60 ){
-              _this.video.currentTime = _this.video.buffered.end((_this.video.buffered.length - 1)) - 0.5;
-          }
-        }
-      }
-      }
-
-    this.destroy = function() {
-      this.ws.onclose=null;
-      if(this.timeout!=null){
-        clearInterval(this.timeout);
-      }
-      this.ws.close(1000, "stop streaming");
-
-    }
-  }
-  /*************************end mse obect **************************/
-  /*************************WEBRTC obect **************************/
-  function WebRTCPlayer(uuid, videoPlayer, channel) {
-    this.webrtc = null;
-    this.webrtcSendChannel = null;
-    this.webrtcSendChannelInterval = null;
-    this.uuid = uuid;
-    this.video = videoPlayer.find('video')[0];
-    this.channel = channel || 0;
-    this.playWebrtc = function() {
-        var _this = this;
-        this.webrtc = new RTCPeerConnection({
-          iceServers: [{
-            urls: ["stun:stun.l.google.com:19302"]
-          }]
-        });
-        this.webrtc.onnegotiationneeded = this.handleNegotiationNeeded.bind(this);
-        this.webrtc.ontrack = function(event) {
-          console.log(event.streams.length + ' track is delivered');
-          _this.video.srcObject = event.streams[0];
-          _this.video.play();
-        }
-        this.webrtc.addTransceiver('video', {
-          'direction': 'sendrecv'
-        });
-        this.webrtcSendChannel = this.webrtc.createDataChannel('foo');
-        this.webrtcSendChannel.onclose = (e) => console.log('sendChannel has closed',e);
-        this.webrtcSendChannel.onopen = () => {
-          console.log('sendChannel has opened');
-          this.webrtcSendChannel.send('ping');
-          this.webrtcSendChannelInterval = setInterval(() => {
-            this.webrtcSendChannel.send('ping');
-          }, 1000)
-        }
-
-        this.webrtcSendChannel.onmessage = e => console.log(e.data);
-      },
-      this.handleNegotiationNeeded = async function() {
-        var _this = this;
-
-        offer = await _this.webrtc.createOffer();
-        await _this.webrtc.setLocalDescription(offer);
-        $.post("/stream/" + _this.uuid + "/channel/" + this.channel + "/webrtc?uuid=" + _this.uuid + "&channel=" + this.channel, {
-          data: btoa(_this.webrtc.localDescription.sdp)
-        }, function(data) {
-          try {
-            _this.webrtc.setRemoteDescription(new RTCSessionDescription({
-              type: 'answer',
-              sdp: atob(data)
-            }))
-          } catch (e) {
-            console.warn(e);
-          }
-
-        });
-      }
-
-    this.destroy = function() {
-      clearInterval(this.webrtcSendChannelInterval);
-      this.webrtc.close();
-      this.video.srcObject = null;
-    }
-  }
-
-  /*********************FULSCREEN******************/
-  function fullscreenEnabled() {
-    return !!(
-      document.fullscreenEnabled ||
-      document.webkitFullscreenEnabled ||
-      document.mozFullScreenEnabled ||
-      document.msFullscreenEnabled
-    );
-  }
-
-  function fullscreenOn(elem) {
-    if (elem.requestFullscreen) {
-      elem.requestFullscreen();
-    } else if (elem.mozRequestFullScreen) {
-      elem.mozRequestFullScreen();
-    } else if (elem.webkitRequestFullscreen) {
-      elem.webkitRequestFullscreen();
-    } else if (elem.msRequestFullscreen) {
-      elem.msRequestFullscreen();
-    }
-  }
 
   function fullscreenOff() {
     if (document.requestFullscreen) {

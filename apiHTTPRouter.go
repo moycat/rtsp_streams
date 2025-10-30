@@ -5,7 +5,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/gin-gonic/autotls"
 	"github.com/gin-gonic/gin"
 	"github.com/sirupsen/logrus"
 )
@@ -34,11 +33,6 @@ func HTTPAPIServer() {
 	}
 
 	public.Use(CrossOrigin())
-	//Add private login password protect methods
-	privat := public.Group("/")
-	if Storage.ServerHTTPLogin() != "" && Storage.ServerHTTPPassword() != "" {
-		privat.Use(gin.BasicAuth(gin.Accounts{Storage.ServerHTTPLogin(): Storage.ServerHTTPPassword()}))
-	}
 
 	/*
 		Static HTML Files Demo Mode
@@ -46,62 +40,13 @@ func HTTPAPIServer() {
 
 	if Storage.ServerHTTPDemo() {
 		public.LoadHTMLGlob(Storage.ServerHTTPDir() + "/templates/*")
-		if Storage.ServerHTTPAuth() {
-			privat.GET("/", HTTPAPIServerIndex)
-			privat.GET("/pages/stream/list", HTTPAPIStreamList)
-			privat.GET("/pages/stream/add", HTTPAPIAddStream)
-			privat.GET("/pages/stream/edit/:uuid", HTTPAPIEditStream)
-			privat.GET("/pages/player/hls/:uuid/:channel", HTTPAPIPlayHls)
-			privat.GET("/pages/player/mse/:uuid/:channel", HTTPAPIPlayMse)
-			privat.GET("/pages/player/webrtc/:uuid/:channel", HTTPAPIPlayWebrtc)
-			privat.GET("/pages/multiview", HTTPAPIMultiview)
-			privat.Any("/pages/multiview/full", HTTPAPIFullScreenMultiView)
-			privat.GET("/pages/documentation", HTTPAPIServerDocumentation)
-			privat.GET("/pages/player/all/:uuid/:channel", HTTPAPIPlayAll)
-		} else {
-			public.GET("/", HTTPAPIServerIndex)
-			public.GET("/pages/stream/list", HTTPAPIStreamList)
-			public.GET("/pages/stream/add", HTTPAPIAddStream)
-			public.GET("/pages/stream/edit/:uuid", HTTPAPIEditStream)
-			public.GET("/pages/player/hls/:uuid/:channel", HTTPAPIPlayHls)
-			public.GET("/pages/player/mse/:uuid/:channel", HTTPAPIPlayMse)
-			public.GET("/pages/player/webrtc/:uuid/:channel", HTTPAPIPlayWebrtc)
-			public.GET("/pages/multiview", HTTPAPIMultiview)
-			public.Any("/pages/multiview/full", HTTPAPIFullScreenMultiView)
-			public.GET("/pages/documentation", HTTPAPIServerDocumentation)
-			public.GET("/pages/player/all/:uuid/:channel", HTTPAPIPlayAll)
-		}
+		public.GET("/", HTTPAPIServerIndex)
+		public.GET("/pages/player/hls/:uuid/:channel", HTTPAPIPlayHls)
+		public.GET("/pages/multiview", HTTPAPIMultiview)
+		public.Any("/pages/multiview/full", HTTPAPIFullScreenMultiView)
+		public.GET("/pages/documentation", HTTPAPIServerDocumentation)
 		public.StaticFS("/static", http.Dir(Storage.ServerHTTPDir()+"/static"))
 	}
-
-	/*
-		Stream Control elements
-	*/
-
-	privat.GET("/streams", HTTPAPIServerStreams)
-	privat.POST("/stream/:uuid/add", HTTPAPIServerStreamAdd)
-	privat.POST("/stream/:uuid/edit", HTTPAPIServerStreamEdit)
-	privat.GET("/stream/:uuid/delete", HTTPAPIServerStreamDelete)
-	privat.GET("/stream/:uuid/reload", HTTPAPIServerStreamReload)
-	privat.GET("/stream/:uuid/info", HTTPAPIServerStreamInfo)
-
-	/*
-		Streams Multi Control elements
-	*/
-
-	privat.POST("/streams/multi/control/add", HTTPAPIServerStreamsMultiControlAdd)
-	privat.POST("/streams/multi/control/delete", HTTPAPIServerStreamsMultiControlDelete)
-
-	/*
-		Stream Channel elements
-	*/
-
-	privat.POST("/stream/:uuid/channel/:channel/add", HTTPAPIServerStreamChannelAdd)
-	privat.POST("/stream/:uuid/channel/:channel/edit", HTTPAPIServerStreamChannelEdit)
-	privat.GET("/stream/:uuid/channel/:channel/delete", HTTPAPIServerStreamChannelDelete)
-	privat.GET("/stream/:uuid/channel/:channel/codec", HTTPAPIServerStreamChannelCodec)
-	privat.GET("/stream/:uuid/channel/:channel/reload", HTTPAPIServerStreamChannelReload)
-	privat.GET("/stream/:uuid/channel/:channel/info", HTTPAPIServerStreamChannelInfo)
 
 	/*
 		Stream video elements
@@ -117,45 +62,8 @@ func HTTPAPIServer() {
 	public.GET("/stream/:uuid/channel/:channel/hlsll/live/init.mp4", HTTPAPIServerStreamHLSLLInit)
 	public.GET("/stream/:uuid/channel/:channel/hlsll/live/segment/:segment/:any", HTTPAPIServerStreamHLSLLM4Segment)
 	public.GET("/stream/:uuid/channel/:channel/hlsll/live/fragment/:segment/:fragment/:any", HTTPAPIServerStreamHLSLLM4Fragment)
-	//MSE
-	public.GET("/stream/:uuid/channel/:channel/mse", HTTPAPIServerStreamMSE)
-	public.POST("/stream/:uuid/channel/:channel/webrtc", HTTPAPIServerStreamWebRTC)
 	//Save fragment to mp4
 	public.GET("/stream/:uuid/channel/:channel/save/mp4/fragment/:duration", HTTPAPIServerStreamSaveToMP4)
-	/*
-		HTTPS Mode Cert
-		# Key considerations for algorithm "RSA" ≥ 2048-bit
-		openssl genrsa -out server.key 2048
-
-		# Key considerations for algorithm "ECDSA" ≥ secp384r1
-		# List ECDSA the supported curves (openssl ecparam -list_curves)
-		#openssl ecparam -genkey -name secp384r1 -out server.key
-		#Generation of self-signed(x509) public key (PEM-encodings .pem|.crt) based on the private (.key)
-
-		openssl req -new -x509 -sha256 -key server.key -out server.crt -days 3650
-	*/
-	if Storage.ServerHTTPS() {
-		if Storage.ServerHTTPSAutoTLSEnable() {
-			go func() {
-				err := autotls.Run(public, Storage.ServerHTTPSAutoTLSName()+Storage.ServerHTTPSPort())
-				if err != nil {
-					log.Println("Start HTTPS Server Error", err)
-				}
-			}()
-		} else {
-			go func() {
-				err := public.RunTLS(Storage.ServerHTTPSPort(), Storage.ServerHTTPSCert(), Storage.ServerHTTPSKey())
-				if err != nil {
-					log.WithFields(logrus.Fields{
-						"module": "http_router",
-						"func":   "HTTPSAPIServer",
-						"call":   "ServerHTTPSPort",
-					}).Fatalln(err.Error())
-					os.Exit(1)
-				}
-			}()
-		}
-	}
 	err := public.Run(Storage.ServerHTTPPort())
 	if err != nil {
 		log.WithFields(logrus.Fields{
@@ -188,15 +96,6 @@ func HTTPAPIServerDocumentation(c *gin.Context) {
 	})
 }
 
-func HTTPAPIStreamList(c *gin.Context) {
-	c.HTML(http.StatusOK, "stream_list.tmpl", gin.H{
-		"port":    Storage.ServerHTTPPort(),
-		"streams": Storage.Streams,
-		"version": time.Now().String(),
-		"page":    "stream_list",
-	})
-}
-
 func HTTPAPIPlayHls(c *gin.Context) {
 	c.HTML(http.StatusOK, "play_hls.tmpl", gin.H{
 		"port":    Storage.ServerHTTPPort(),
@@ -207,43 +106,6 @@ func HTTPAPIPlayHls(c *gin.Context) {
 		"channel": c.Param("channel"),
 	})
 }
-func HTTPAPIPlayMse(c *gin.Context) {
-	c.HTML(http.StatusOK, "play_mse.tmpl", gin.H{
-		"port":    Storage.ServerHTTPPort(),
-		"streams": Storage.Streams,
-		"version": time.Now().String(),
-		"page":    "play_mse",
-		"uuid":    c.Param("uuid"),
-		"channel": c.Param("channel"),
-	})
-}
-func HTTPAPIPlayWebrtc(c *gin.Context) {
-	c.HTML(http.StatusOK, "play_webrtc.tmpl", gin.H{
-		"port":    Storage.ServerHTTPPort(),
-		"streams": Storage.Streams,
-		"version": time.Now().String(),
-		"page":    "play_webrtc",
-		"uuid":    c.Param("uuid"),
-		"channel": c.Param("channel"),
-	})
-}
-func HTTPAPIAddStream(c *gin.Context) {
-	c.HTML(http.StatusOK, "add_stream.tmpl", gin.H{
-		"port":    Storage.ServerHTTPPort(),
-		"streams": Storage.Streams,
-		"version": time.Now().String(),
-		"page":    "add_stream",
-	})
-}
-func HTTPAPIEditStream(c *gin.Context) {
-	c.HTML(http.StatusOK, "edit_stream.tmpl", gin.H{
-		"port":    Storage.ServerHTTPPort(),
-		"streams": Storage.Streams,
-		"version": time.Now().String(),
-		"page":    "edit_stream",
-		"uuid":    c.Param("uuid"),
-	})
-}
 
 func HTTPAPIMultiview(c *gin.Context) {
 	c.HTML(http.StatusOK, "multiview.tmpl", gin.H{
@@ -251,17 +113,6 @@ func HTTPAPIMultiview(c *gin.Context) {
 		"streams": Storage.Streams,
 		"version": time.Now().String(),
 		"page":    "multiview",
-	})
-}
-
-func HTTPAPIPlayAll(c *gin.Context) {
-	c.HTML(http.StatusOK, "play_all.tmpl", gin.H{
-		"port":    Storage.ServerHTTPPort(),
-		"streams": Storage.Streams,
-		"version": time.Now().String(),
-		"page":    "play_all",
-		"uuid":    c.Param("uuid"),
-		"channel": c.Param("channel"),
 	})
 }
 

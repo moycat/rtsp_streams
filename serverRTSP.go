@@ -126,7 +126,7 @@ var statusText = map[int]string{
 	StatusOptionNotsupport:              "Option not supported",
 }
 
-//RTSPServer func
+// RTSPServer func
 func RTSPServer() {
 	log.WithFields(logrus.Fields{
 		"module": "rtsp_server",
@@ -166,10 +166,10 @@ func RTSPServer() {
 	}
 }
 
-//RTSPServerClientHandle func
+// RTSPServerClientHandle func
 func RTSPServerClientHandle(conn net.Conn) {
 	buf := make([]byte, 4096)
-	token, uuid, channel, in, cSEQ := "", "", "0", 0, 0
+	uuid, channel, in, cSEQ := "", "0", 0, 0
 	var playStarted bool
 	defer func() {
 		err := conn.Close()
@@ -246,7 +246,7 @@ func RTSPServerClientHandle(conn net.Conn) {
 				}
 				continue
 			}
-			uuid, channel, token, err = parseStreamChannel(buf[:n])
+			uuid, channel, _, err = parseStreamChannel(buf[:n])
 			if err != nil {
 				log.WithFields(logrus.Fields{
 					"module":  "rtsp_server",
@@ -266,21 +266,6 @@ func RTSPServerClientHandle(conn net.Conn) {
 					"call":    "StreamChannelExist",
 				}).Errorln(ErrorStreamNotFound.Error())
 				err = RTSPServerClientResponse(uuid, channel, conn, 404, map[string]string{"CSeq": strconv.Itoa(cSEQ)})
-				if err != nil {
-					return
-				}
-				return
-			}
-
-			if !RemoteAuthorization("RTSP", uuid, channel, token, conn.RemoteAddr().String()) {
-				log.WithFields(logrus.Fields{
-					"module":  "rtsp_server",
-					"stream":  uuid,
-					"channel": channel,
-					"func":    "handleRTSPServerRequest",
-					"call":    "StreamChannelExist",
-				}).Errorln(ErrorStreamUnauthorized.Error())
-				err = RTSPServerClientResponse(uuid, channel, conn, 401, map[string]string{"CSeq": strconv.Itoa(cSEQ)})
 				if err != nil {
 					return
 				}
@@ -346,7 +331,7 @@ func RTSPServerClientHandle(conn net.Conn) {
 	}
 }
 
-//handleRTSPServerPlay func
+// handleRTSPServerPlay func
 func RTSPServerClientPlay(uuid string, channel string, conn net.Conn) {
 	cid, _, ch, err := Storage.ClientAdd(uuid, channel, RTSP)
 	if err != nil {
@@ -403,7 +388,7 @@ func RTSPServerClientPlay(uuid string, channel string, conn net.Conn) {
 	}
 }
 
-//handleRTSPServerPlay func
+// handleRTSPServerPlay func
 func RTSPServerClientResponse(uuid string, channel string, conn net.Conn, status int, headers map[string]string) error {
 	var sdp string
 	builder := bytes.Buffer{}
@@ -437,12 +422,12 @@ func RTSPServerClientResponse(uuid string, channel string, conn net.Conn, status
 	return nil
 }
 
-//parsecSEQ func
+// parsecSEQ func
 func parsecSEQ(buf []byte) int {
 	return stringToInt(stringInBetween(string(buf), "CSeq: ", "\r\n"))
 }
 
-//parseStage func
+// parseStage func
 func parseStage(buf []byte) (string, error) {
 	st := strings.Split(string(buf), " ")
 	if len(st) > 0 {
@@ -451,7 +436,7 @@ func parseStage(buf []byte) (string, error) {
 	return "", errors.New("parse stage error " + string(buf))
 }
 
-//parseStreamChannel func
+// parseStreamChannel func
 func parseStreamChannel(buf []byte) (string, string, string, error) {
 
 	var token string

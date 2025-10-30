@@ -26,13 +26,6 @@ func HTTPAPIServerStreamHLSM3U8(c *gin.Context) {
 		return
 	}
 
-	if !RemoteAuthorization("HLS", c.Param("uuid"), c.Param("channel"), c.Query("token"), c.ClientIP()) {
-		requestLogger.WithFields(logrus.Fields{
-			"call": "RemoteAuthorization",
-		}).Errorln(ErrorStreamUnauthorized.Error())
-		return
-	}
-
 	c.Header("Content-Type", "application/vnd.apple.mpegurl")
 	Storage.StreamChannelRun(c.Param("uuid"), c.Param("channel"))
 	//If stream mode on_demand need wait ready segment's

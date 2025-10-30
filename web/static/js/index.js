@@ -8,81 +8,6 @@ $('input[name=defaultPlayer]').on('change', function() {
   localStorage.setItem('defaultPlayer', $(this).val());
 })
 
-var activeStream = null;
-
-function showAddStream(streamName, streamUrl) {
-  streamName = streamName || '';
-  streamUrl = streamUrl || '';
-  Swal.fire({
-    title: 'Add stream',
-    html: '<form class="text-left"> ' +
-      '<div class="form-group">' +
-      '<label>Name</label>' +
-      '<input type="text" class="form-control" id="stream-name">' +
-      '<small class="form-text text-muted"></small>' +
-      '</div>' +
-      '<div class="form-group">' +
-      '  <label>URL</label>' +
-      '  <input type="text" class="form-control" id="stream-url">' +
-      '  </div>' +
-      '<div class="form-group form-check">' +
-      '<input type="checkbox" class="form-check-input" id="stream-ondemand">' +
-      '<label class="form-check-label">ondemand</label>' +
-      '</div>' +
-      '</form>',
-    focusConfirm: true,
-    showCancelButton: true,
-    preConfirm: () => {
-      var uuid = randomUuid(),
-        name = $('#stream-name').val(),
-        url = $('#stream-url').val(),
-        ondemand = $('#stream-ondemand').val();
-      if (!validURL(url)) {
-        Swal.fire({
-          icon: 'error',
-          title: 'Oops...',
-          text: 'wrong url',
-          confirmButtonText: 'return back',
-          preConfirm: () => {
-            showAddStream(name, url)
-          }
-        })
-      } else {
-        goRequest('add', uuid, {
-          name: name,
-          url: url,
-          ondemand: ondemand
-        });
-
-
-      }
-    }
-  })
-
-}
-
-function showEditStream(uuid) {
-  console.log(streams[uuid]);
-}
-
-function deleteStream(uuid) {
-  activeStream = uuid;
-  Swal.fire({
-    title: 'Are you sure?',
-    text: "Do you want delete stream " + streams[uuid].name + " ?",
-    icon: 'warning',
-    showCancelButton: true,
-    confirmButtonColor: '#3085d6',
-    cancelButtonColor: '#d33',
-    confirmButtonText: 'Yes, delete it!'
-  }).then((result) => {
-    if (result.value) {
-      goRequest('delete', uuid)
-
-    }
-  })
-}
-
 function renewStreamlist() {
   goRequest('streams');
 }
@@ -222,7 +147,6 @@ function goRequestHandle(method, response, uuid) {
     default:
 
   }
-
 }
 
 function getImageBase64(videoEl){
@@ -307,12 +231,7 @@ function streamHtmlTemplate(uuid, name) {
     '<i class="fas fa-ellipsis-v"></i>' +
     '</a>' +
     '<div class="dropdown-menu">' +
-    '<a class="dropdown-item" onclick="rtspPlayer.livePlayer(\'hls\', \'' + uuid + '\')" href="#">Play HLS</a>' +
-    '<a class="dropdown-item" onclick="rtspPlayer.livePlayer(\'mse\', \'' + uuid + '\')" href="#">Play MSE</a>' +
-    '<a class="dropdown-item" onclick="rtspPlayer.livePlayer(\'webrtc\', \'' + uuid + '\')" href="#">Play WebRTC</a>' +
-    '<div class="dropdown-divider"></div>' +
-    '<a class="dropdown-item" onclick="showEditStream(\'' + uuid + '\')" href="#">Edit</a>' +
-    '<a class="dropdown-item" onclick="deleteStream(\'' + uuid + '\')" href="#">Delete</a>' +
+    '<a class="dropdown-item" onclick="rtspPlayer.livePlayer(\'hls\', \'' + uuid + '\')" href="#">Play</a>' +
     '</div>' +
     '</div>' +
     '</div>' +
@@ -357,148 +276,6 @@ function Utf8ArrayToStr(array) {
     }
   }
   return out;
-}
-
-function browserDetector() {
-  var Browser;
-  var ua = self.navigator.userAgent.toLowerCase();
-  var match =
-    /(edge)\/([\w.]+)/.exec(ua) ||
-    /(opr)[\/]([\w.]+)/.exec(ua) ||
-    /(chrome)[ \/]([\w.]+)/.exec(ua) ||
-    /(iemobile)[\/]([\w.]+)/.exec(ua) ||
-    /(version)(applewebkit)[ \/]([\w.]+).*(safari)[ \/]([\w.]+)/.exec(ua) ||
-    /(webkit)[ \/]([\w.]+).*(version)[ \/]([\w.]+).*(safari)[ \/]([\w.]+)/.exec(
-      ua
-    ) ||
-    /(webkit)[ \/]([\w.]+)/.exec(ua) ||
-    /(opera)(?:.*version|)[ \/]([\w.]+)/.exec(ua) ||
-    /(msie) ([\w.]+)/.exec(ua) ||
-    (ua.indexOf("trident") >= 0 && /(rv)(?::| )([\w.]+)/.exec(ua)) ||
-    (ua.indexOf("compatible") < 0 && /(firefox)[ \/]([\w.]+)/.exec(ua)) || [];
-  var platform_match =
-    /(ipad)/.exec(ua) ||
-    /(ipod)/.exec(ua) ||
-    /(windows phone)/.exec(ua) ||
-    /(iphone)/.exec(ua) ||
-    /(kindle)/.exec(ua) ||
-    /(android)/.exec(ua) ||
-    /(windows)/.exec(ua) ||
-    /(mac)/.exec(ua) ||
-    /(linux)/.exec(ua) ||
-    /(cros)/.exec(ua) || [];
-  var matched = {
-    browser: match[5] || match[3] || match[1] || "",
-    version: match[2] || match[4] || "0",
-    majorVersion: match[4] || match[2] || "0",
-    platform: platform_match[0] || ""
-  };
-  var browser = {};
-
-  if (matched.browser) {
-    browser[matched.browser] = true;
-    var versionArray = matched.majorVersion.split(".");
-    browser.version = {
-      major: parseInt(matched.majorVersion, 10),
-      string: matched.version
-    };
-
-    if (versionArray.length > 1) {
-      browser.version.minor = parseInt(versionArray[1], 10);
-    }
-
-    if (versionArray.length > 2) {
-      browser.version.build = parseInt(versionArray[2], 10);
-    }
-  }
-
-  if (matched.platform) {
-    browser[matched.platform] = true;
-  }
-
-  if (browser.chrome || browser.opr || browser.safari) {
-    browser.webkit = true;
-  } // MSIE. IE11 has 'rv' identifer
-
-  if (browser.rv || browser.iemobile) {
-    if (browser.rv) {
-      delete browser.rv;
-    }
-
-    var msie = "msie";
-    matched.browser = msie;
-    browser[msie] = true;
-  } // Microsoft Edge
-
-  if (browser.edge) {
-    delete browser.edge;
-    var msedge = "msedge";
-    matched.browser = msedge;
-    browser[msedge] = true;
-  } // Opera 15+
-
-  if (browser.opr) {
-    var opera = "opera";
-    matched.browser = opera;
-    browser[opera] = true;
-  } // Stock android browsers are marked as Safari
-
-  if (browser.safari && browser.android) {
-    var android = "android";
-    matched.browser = android;
-    browser[android] = true;
-  }
-
-  browser.name = matched.browser;
-  browser.platform = matched.platform;
-
-
-  return browser;
-}
-
-function addChannel() {
-  $('#streams-form-wrapper').append(chanellTemplate());
-}
-
-function chanellTemplate() {
-  let random = Math.ceil(Math.random() * 1000);
-  let html = `
-    <div class="col-12">
-      <div class="card card-secondary">
-        <div class="card-header">
-          <h3 class="card-title">Sub channel<small> parameters</small></h3>
-          <div class="card-tools">
-          <button type="button" class="btn btn-tool" onclick="removeChannelDiv(this)"><i class="fas fa-times"></i></button>
-          </div>
-        </div>
-          <div class="card-body">
-          <form class="stream-form">
-            <div class="form-group">
-              <label for="exampleInputPassword1">Substream url</label>
-              <input type="text" name="stream-url" class="form-control"  placeholder="Enter stream url" >
-              <small  class="form-text text-muted">Enter rtsp address as instructed by your camera. Look like <code>rtsp://&lt;ip&gt;:&lt;port&gt;/path </code> </small>
-            </div>
-            <div class="form-group">
-              <label for="inputStatus">Substream type</label>
-              <select class="form-control custom-select" name="stream-ondemand" >
-                <option selected disabled><small>Select One</small></option>
-                <option value="1">On demand only</option>
-                <option value="0">Persistent connection</option>
-              </select>
-              <small  class="form-text text-muted">On persistent connection, the server get data from the camera continuously. On demand, the server get data from the camera only when you click play button </small>
-            </div>
-            <div class="form-group">
-              <div class="custom-control custom-switch">
-                <input type="checkbox" class="custom-control-input" name="debug" id="substream-debug-switch-` + random + `" >
-                <label class="custom-control-label" for="substream-debug-switch-` + random + `">Enable debug</label>
-              </div>
-              <small  class="form-text text-muted">Select this options if you want get more data about the stream </small>
-            </div>
-              </form>
-          </div>
-      </div>
-      </div>`;
-  return html;
 }
 
 function removeChannelDiv(element) {

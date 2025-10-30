@@ -103,31 +103,6 @@ func (obj *StorageST) StreamChannelExist(streamID string, channelID string) bool
 	return false
 }
 
-// StreamChannelReload reload stream
-func (obj *StorageST) StreamChannelReload(uuid string, channelID string) error {
-	obj.mutex.RLock()
-	defer obj.mutex.RUnlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
-		if channelTmp, ok := tmp.Channels[channelID]; ok {
-			channelTmp.signals <- SignalStreamRestart
-			return nil
-		}
-	}
-	return ErrorStreamNotFound
-}
-
-// StreamInfo return stream info
-func (obj *StorageST) StreamChannelInfo(uuid string, channelID string) (*ChannelST, error) {
-	obj.mutex.RLock()
-	defer obj.mutex.RUnlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
-		if channelTmp, ok := tmp.Channels[channelID]; ok {
-			return &channelTmp, nil
-		}
-	}
-	return nil, ErrorStreamNotFound
-}
-
 // StreamChannelCodecs get stream codec storage or wait
 func (obj *StorageST) StreamChannelCodecs(streamID string, channelID string) ([]av.CodecData, error) {
 	for i := 0; i < 100; i++ {
@@ -251,79 +226,6 @@ func (obj *StorageST) StreamChannelSDP(streamID string, channelID string) ([]byt
 		time.Sleep(50 * time.Millisecond)
 	}
 	return nil, ErrorStreamNotFound
-}
-
-// StreamChannelAdd add stream
-func (obj *StorageST) StreamChannelAdd(uuid string, channelID string, val ChannelST) error {
-	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	if _, ok := obj.Streams[uuid]; !ok {
-		return ErrorStreamNotFound
-	}
-	stream := obj.Streams[uuid]
-	if stream.Channels == nil {
-		stream.Channels = make(map[string]ChannelST)
-	}
-	if _, ok := obj.Streams[uuid].Channels[channelID]; ok {
-		return ErrorStreamChannelAlreadyExists
-	}
-	val = obj.StreamChannelMake(val)
-	stream.Channels[channelID] = val
-	obj.Streams[uuid] = stream
-	if !val.OnDemand {
-		val.runLock = true
-		go StreamServerRunStreamDo(uuid, channelID)
-	}
-	err := obj.SaveConfig()
-	if err != nil {
-		return err
-	}
-	return nil
-}
-
-// StreamEdit edit stream
-func (obj *StorageST) StreamChannelEdit(uuid string, channelID string, val ChannelST) error {
-	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
-		if currentChannel, ok := tmp.Channels[channelID]; ok {
-			if currentChannel.runLock {
-				currentChannel.signals <- SignalStreamStop
-			}
-			val = obj.StreamChannelMake(val)
-			obj.Streams[uuid].Channels[channelID] = val
-			if !val.OnDemand {
-				val.runLock = true
-				go StreamServerRunStreamDo(uuid, channelID)
-			}
-			err := obj.SaveConfig()
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-	}
-	return ErrorStreamNotFound
-}
-
-// StreamChannelDelete stream
-func (obj *StorageST) StreamChannelDelete(uuid string, channelID string) error {
-	obj.mutex.Lock()
-	defer obj.mutex.Unlock()
-	if tmp, ok := obj.Streams[uuid]; ok {
-		if channelTmp, ok := tmp.Channels[channelID]; ok {
-			if channelTmp.runLock {
-				channelTmp.signals <- SignalStreamStop
-			}
-			delete(obj.Streams[uuid].Channels, channelID)
-			err := obj.SaveConfig()
-			if err != nil {
-				return err
-			}
-			return nil
-		}
-	}
-	return ErrorStreamNotFound
 }
 
 // NewHLSMuxer new muxer init

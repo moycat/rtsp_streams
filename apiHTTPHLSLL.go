@@ -7,7 +7,7 @@ import (
 	"github.com/sirupsen/logrus"
 )
 
-//HTTPAPIServerStreamHLSLLInit send client ts segment
+// HTTPAPIServerStreamHLSLLInit send client ts segment
 func HTTPAPIServerStreamHLSLLInit(c *gin.Context) {
 	safeContext := c.Copy()
 	requestLogger := log.WithFields(logrus.Fields{
@@ -22,13 +22,6 @@ func HTTPAPIServerStreamHLSLLInit(c *gin.Context) {
 		requestLogger.WithFields(logrus.Fields{
 			"call": "StreamChannelExist",
 		}).Errorln(ErrorStreamNotFound.Error())
-		return
-	}
-
-	if !RemoteAuthorization("HLS", safeContext.Param("uuid"), safeContext.Param("channel"), safeContext.Query("token"), safeContext.ClientIP()) {
-		requestLogger.WithFields(logrus.Fields{
-			"call": "RemoteAuthorization",
-		}).Errorln(ErrorStreamUnauthorized.Error())
 		return
 	}
 
@@ -63,7 +56,7 @@ func HTTPAPIServerStreamHLSLLInit(c *gin.Context) {
 	}
 }
 
-//HTTPAPIServerStreamHLSLLM3U8 send client m3u8 play list
+// HTTPAPIServerStreamHLSLLM3U8 send client m3u8 play list
 func HTTPAPIServerStreamHLSLLM3U8(c *gin.Context) {
 	safeContext := c.Copy()
 	requestLogger := log.WithFields(logrus.Fields{
@@ -98,7 +91,7 @@ func HTTPAPIServerStreamHLSLLM3U8(c *gin.Context) {
 	}
 }
 
-//HTTPAPIServerStreamHLSLLM4Segment send client ts segment
+// HTTPAPIServerStreamHLSLLM4Segment send client ts segment
 func HTTPAPIServerStreamHLSLLM4Segment(c *gin.Context) {
 	requestLogger := log.WithFields(logrus.Fields{
 		"module":  "http_hlsll",
@@ -163,7 +156,7 @@ func HTTPAPIServerStreamHLSLLM4Segment(c *gin.Context) {
 	}
 }
 
-//HTTPAPIServerStreamHLSLLM4Fragment send client ts segment
+// HTTPAPIServerStreamHLSLLM4Fragment send client ts segment
 func HTTPAPIServerStreamHLSLLM4Fragment(c *gin.Context) {
 	requestLogger := log.WithFields(logrus.Fields{
 		"module":  "http_hlsll",
